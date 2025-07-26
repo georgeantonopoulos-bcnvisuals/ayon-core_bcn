@@ -152,9 +152,14 @@ class IntegrateAsset(pyblish.api.InstancePlugin):
             ).format(instance.data["productType"]))
             return
 
-        file_transactions = FileTransaction(log=self.log,
-                                            # Enforce unique transfers
-                                            allow_queue_replacements=False)
+        project_name = instance.context.data["projectName"]
+        file_transactions = FileTransaction(
+            log=self.log,
+            # Enforce unique transfers
+            allow_queue_replacements=False,
+            # Enable remote copy optimization
+            project_name=project_name
+        )
         try:
             self.register(instance, file_transactions, filtered_repres)
         except DuplicateDestinationError as exc:
@@ -253,8 +258,10 @@ class IntegrateAsset(pyblish.api.InstancePlugin):
                 instance)
 
             for src, dst in prepared["transfers"]:
-                # todo: add support for hardlink transfers
-                file_transactions.add(src, dst)
+                # Use intelligent mode selection for representation files
+                # This will automatically choose between copy, hardlink, or remote
+                # based on file size, paths, and configuration
+                file_transactions.add_with_auto_mode(src, dst, prefer_remote=True)
 
             prepared_representations.append(prepared)
 
@@ -274,6 +281,16 @@ class IntegrateAsset(pyblish.api.InstancePlugin):
 
                 file_transactions.add(src, dst, mode=copy_mode)
                 resource_destinations.add(os.path.abspath(dst))
+
+        # Handle remote transfers with intelligent mode selection
+        # This allows publish plugins to specify files that should be 
+        # considered for optimized remote copying
+        for src, dst in instance.data.get("remote_transfers", []):
+            self._validate_path_in_project_roots(anatomy, dst)
+            
+            # Use automatic mode selection with preference for remote copy
+            file_transactions.add_with_auto_mode(src, dst, prefer_remote=True)
+            resource_destinations.add(os.path.abspath(dst))
 
         # Bulk write to the database
         # We write the product and version to the database before the File

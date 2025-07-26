@@ -48,6 +48,71 @@ class CoreImageIOFileRulesModel(BaseSettingsModel):
         title="Rules"
     )
 
+
+class RemoteFileCopyModel(BaseSettingsModel):
+    """Settings for server-side file copy optimization."""
+    
+    enabled: bool = SettingsField(
+        False,
+        title="Enable Remote File Copy",
+        description=(
+            "Enable server-side file copying to avoid network bottlenecks. "
+            "Requires SSH access to storage server and server_copy_tool.py script."
+        )
+    )
+    
+    ssh_host: str = SettingsField(
+        "",
+        title="Storage Server SSH Host",
+        description="Hostname or IP address of the storage server"
+    )
+    
+    ssh_user: str = SettingsField(
+        "",
+        title="SSH Username",
+        description="Username for SSH authentication to storage server"
+    )
+    
+    ssh_key_path: str = SettingsField(
+        "",
+        title="SSH Private Key Path (Optional)",
+        description="Path to SSH private key file. Leave empty to use default SSH authentication."
+    )
+    
+    script_path: str = SettingsField(
+        "/opt/ayon/server_copy_tool.py",
+        title="Server Copy Script Path",
+        description="Full path to server_copy_tool.py on the storage server"
+    )
+    
+    timeout: int = SettingsField(
+        3600,
+        title="Copy Timeout (seconds)",
+        description="Maximum time to wait for copy operations",
+        ge=60,
+        le=7200
+    )
+    
+    min_file_size_mb: int = SettingsField(
+        100,
+        title="Minimum File Size (MB)",
+        description="Only use remote copy for files larger than this size",
+        ge=1,
+        le=10000
+    )
+    
+    test_connection_on_init: bool = SettingsField(
+        True,
+        title="Test Connection on Startup",
+        description="Test SSH connection when initializing remote copy (recommended)"
+    )
+    
+    verify_checksums: bool = SettingsField(
+        True,
+        title="Verify File Integrity",
+        description="Verify MD5 checksums after copying (recommended for critical files)"
+    )
+
     @validator("rules")
     def validate_unique_outputs(cls, value):
         ensure_unique_names(value)
@@ -289,6 +354,11 @@ class CoreSettings(BaseSettingsModel):
         default_factory=CoreImageIOBaseModel,
         title="Color Management (ImageIO)"
     )
+    remote_file_copy: RemoteFileCopyModel = SettingsField(
+        default_factory=RemoteFileCopyModel,
+        title="Remote File Copy",
+        description="Server-side file copy optimization for network storage"
+    )
     publish: PublishPuginsModel = SettingsField(
         default_factory=PublishPuginsModel,
         title="Publish plugins"
@@ -365,6 +435,17 @@ DEFAULT_VALUES = {
                 }
             ],
         },
+    },
+    "remote_file_copy": {
+        "enabled": False,
+        "ssh_host": "",
+        "ssh_user": "",
+        "ssh_key_path": "",
+        "script_path": "/opt/ayon/server_copy_tool.py",
+        "timeout": 3600,
+        "min_file_size_mb": 100,
+        "test_connection_on_init": True,
+        "verify_checksums": True
     },
     "studio_name": "",
     "studio_code": "",
